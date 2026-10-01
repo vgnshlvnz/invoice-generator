@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { reducer, type Action, type AppState } from './store';
-import type { Invoice, InvoiceIndexEntry, Profile, SavedClient } from '../domain';
+import { describe, it, expect } from 'vitest';
+import { reducer, type AppState } from './store';
+import type { InvoiceIndexEntry, Profile, SavedClient } from '../domain';
 import { createEmptyInvoice } from '../domain';
 
 /** Create a minimal app state for testing. */
@@ -77,9 +77,10 @@ describe('reducer — ADD_ITEM / REMOVE_ITEM / MOVE_ITEM', () => {
 
   it('moves an item from one index to another', () => {
     const state = makeState();
-    const newState = reducer(state, { type: 'ADD_ITEM' });
-    const newState2 = reducer(newState, { type: 'MOVE_ITEM', from: 1, to: 0 });
-    expect(newState2.invoice.invoice.items[0].id).toBe(state.invoice.invoice.items[1].id);
+    const afterAdd = reducer(state, { type: 'ADD_ITEM' });
+    const newState = reducer(afterAdd, { type: 'MOVE_ITEM', from: 1, to: 0 });
+    expect(newState.invoice.invoice.items[0].id).toBe(afterAdd.invoice.invoice.items[1].id);
+    expect(newState.invoice.invoice.items[1].id).toBe(state.invoice.invoice.items[0].id);
   });
 });
 

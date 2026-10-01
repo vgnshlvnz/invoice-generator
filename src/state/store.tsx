@@ -8,7 +8,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef }
 import type { Invoice, InvoiceIndexEntry, Profile, SavedClient } from '../domain';
 import { createEmptyInvoice } from '../domain';
 import { fromYaml, toYaml } from '../domain';
-import type { InvoiceRepository } from './repository';
+import type { InvoiceRepository } from '../storage/repository';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ export interface AppState {
 }
 
 /** Actions dispatched by the reducer. */
-type Action =
+export type Action =
   | { type: 'LOAD'; payload: Invoice }
   | { type: 'NEW' }
   | { type: 'UPDATE_FIELD'; path: string; value: unknown }
@@ -58,7 +58,7 @@ function initialInvoiceState(): InvoiceState {
     yamlErrors: [],
     dirty: false,
     saveStatus: 'idle',
-  };
+  } as InvoiceState;
 }
 
 /** Deep clone an object via JSON. */
@@ -67,7 +67,7 @@ function deepClone<T>(obj: T): T {
 }
 
 /** Create a new invoice number string. */
-function generateNumber(index: InvoiceIndexEntry[], profile: Profile): string {
+function generateNumber(index: InvoiceIndexEntry[]): string {
   const year = new Date().getFullYear();
   const existing = index.filter((e) => e.number.startsWith(`INV-${year}`));
   const maxSeq = existing.reduce((max, e) => {
@@ -78,7 +78,7 @@ function generateNumber(index: InvoiceIndexEntry[], profile: Profile): string {
 }
 
 /** The reducer function. */
-function reducer(state: AppState, action: Action): AppState {
+export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'LOAD': {
       const invoice = action.payload;
@@ -91,7 +91,7 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'NEW': {
       const newInvoice = createEmptyInvoice(undefined, new Date());
-      newInvoice.number = generateNumber(state.index, state.profile);
+      newInvoice.number = generateNumber(state.index);
       const yamlText = toYaml(newInvoice);
       return {
         ...state,
@@ -272,25 +272,23 @@ const AppContext = createContext<{
 
 const AUTOSAVE_DELAY = 600; // ms
 
-/** Load all data from repository. */
-function loadData(repo: InvoiceRepository): Partial<AppState> {
+interface AppProviderProps {
+  repository: InvoiceRepository;
+  children: React.ReactNode;
+}
+
+/** Full initial state (merged with repository data). */
+function buildInitialState(repo: InvoiceRepository): AppState {
   return {
+    invoice: initialInvoiceState(),
     index: repo.listInvoices(),
     profile: repo.getProfile(),
     clients: repo.getClients(),
   };
 }
 
-interface AppProviderProps {
-  repository: InvoiceRepository;
-  children: React.ReactNode;
-}
-
 export function AppProvider({ repository, children }: AppProviderProps) {
-  const initialState: AppState = {
-    invoice: initialInvoiceState(),
-    ...loadData(repository),
-  };
+  const initialState = buildInitialState(repository);
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -300,7 +298,7 @@ export function AppProvider({ repository, children }: AppProviderProps) {
     dispatch({ type: 'SET_INDEX', index: repository.listInvoices() });
     dispatch({ type: 'SET_PROFILE', profile: repository.getProfile() });
     dispatch({ type: 'SET_CLIENTS', clients: repository.getClients() });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Autosave ───────────────────────────────────────────────────────
   const save = useCallback(() => {

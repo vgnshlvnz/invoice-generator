@@ -1,5 +1,7 @@
 /** Barrel export for the domain module. */
-export * from './schema';
+export * from './types';
+export { BankDetailsSchema, SellerSchema, ClientSchema, ItemSchema, DiscountSchema, InvoiceSchema, validate } from './schema';
+export type { Invoice, ParseResult } from './schema';
 export * from './factory';
 export * from './money';
 export * from './totals';

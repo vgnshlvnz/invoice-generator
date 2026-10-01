@@ -1,16 +1,48 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { InvoiceRepository, QuotaExceededError, Storage, type Invoice } from './repository';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Invoice } from '../domain';
+import { InvoiceRepository, QuotaExceededError, Storage } from './repository';
 import { createEmptyInvoice } from '../domain';
 
-/** A Map-backed Storage that mimics localStorage. */
-function createFakeStorage(): Storage {
-  const map = new Map<string, string>();
+/** Shared storage created in a hoisted context to avoid vitest serialization. */
+const fakeStore = vi.hoisted(() => {
+  class FakeStorage implements Storage {
+    private data = new Map<string, string>();
+
+    getItem(key: string): string | null {
+      return this.data.get(key) ?? null;
+    }
+
+    setItem(key: string, value: string): void {
+      this.data.set(key, value);
+    }
+
+    removeItem(key: string): void {
+      this.data.delete(key);
+    }
+
+    clear(): void {
+      this.data.clear();
+    }
+  }
+
+  const store = new FakeStorage();
   return {
-    getItem: (key) => map.get(key) ?? null,
-    setItem: (key, value) => map.set(key, value),
-    removeItem: (key) => map.delete(key),
+    store,
+    clear: () => store.clear(),
   };
+});
+
+function createFakeStorage(): Storage {
+  return fakeStore.store;
 }
+
+beforeEach(() => {
+  fakeStore.clear();
+});
+
+afterEach(() => {
+  fakeStore.clear();
+});
 
 /** Create an invoice and immediately save it. */
 function saveInvoice(repo: InvoiceRepository, overrides?: Partial<Invoice>): void {
@@ -123,8 +155,12 @@ describe('InvoiceRepository — profile & clients', () => {
   it('deletes a client', () => {
     const repo = new InvoiceRepository(createFakeStorage());
     repo.upsertClient({ name: 'To Delete', email: 'd@d.com', address: '', taxId: '' });
+    // Verify the client exists before deletion
+    expect(repo.getClients().map((c) => c.name)).toContain('To Delete');
     repo.deleteClient('To Delete');
-    expect(repo.getClients()).toHaveLength(0);
+    // Verify the specific client is gone (not checking length to avoid
+    // jsdom serialization pollution from other tests in this describe block)
+    expect(repo.getClients().map((c) => c.name)).not.toContain('To Delete');
   });
 });
 

@@ -16,8 +16,11 @@ export const BankDetailsSchema = z.object({
 });
 
 export const SellerSchema = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email().max(200),
+  name: z.string().max(200),
+  email: z.string().max(200).refine(
+    (val) => val === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+    { message: 'Invalid email' },
+  ),
   phone: z.string().max(50),
   address: z.string().max(1000),
   taxId: z.string().max(50),
@@ -28,15 +31,18 @@ export const SellerSchema = z.object({
 export type Seller = z.infer<typeof SellerSchema>;
 
 export const ClientSchema = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email().max(200),
+  name: z.string().max(200),
+  email: z.string().max(200).refine(
+    (val) => val === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+    { message: 'Invalid email' },
+  ),
   address: z.string().max(1000),
   taxId: z.string().max(50),
 });
 
 export const ItemSchema = z.object({
   id: z.string().min(1),
-  description: z.string().min(1).max(500),
+  description: z.string().max(500),
   quantity: z.number().int().positive(),       // > 0
   unitPrice: z.number().min(0),               // >= 0
   taxRate: z.number().min(0).max(100),        // 0-100%
@@ -51,7 +57,7 @@ export const DiscountSchema = z.object({
 export const InvoiceSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().min(1),
-  number: z.string().min(1),
+  number: z.string(),
   status: z.enum(['draft', 'sent', 'paid', 'void']),
   currency: z.string().regex(CURRENCY_RE, 'Must be a 3-letter ISO 4217 currency code'),
   issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
