@@ -7,6 +7,7 @@ import type { InvoiceRepository } from '../../storage/repository';
 import { Drawer, Button } from '../../ui';
 import { useInvoiceList } from './useInvoiceList';
 import { InvoiceRow } from './InvoiceRow';
+import { ImportExport } from './ImportExport';
 import type { InvoiceFilter } from './types';
 import type { InvoiceIndexEntry } from '../../domain';
 
@@ -46,15 +47,26 @@ export function InvoicesDrawer({ isOpen, onClose, repository }: InvoicesDrawerPr
   };
 
   const handleMarkStatus = (entry: InvoiceIndexEntry, status: 'sent' | 'paid') => {
+    // The open invoice goes through the store (autosave persists it);
+    // any other row is updated directly in storage.
+    if (entry.id === state.invoice.invoice.id) {
+      dispatch({ type: 'UPDATE_FIELD', path: 'status', value: status });
+      return;
+    }
     const invoice = repository.getInvoice(entry.id);
     if (invoice) {
-      dispatch({ type: 'UPDATE_FIELD', path: 'status', value: status });
+      repository.saveInvoice({ ...invoice, status });
+      dispatch({ type: 'SET_INDEX', index: repository.listInvoices() });
     }
   };
 
   const handleDelete = (entry: InvoiceIndexEntry) => {
     repository.deleteInvoice(entry.id);
-    dispatch({ type: 'DELETE' });
+    if (entry.id === state.invoice.invoice.id) {
+      dispatch({ type: 'DELETE' });
+    } else {
+      dispatch({ type: 'SET_INDEX', index: repository.listInvoices() });
+    }
   };
 
   const handleNew = () => {
@@ -161,6 +173,8 @@ export function InvoicesDrawer({ isOpen, onClose, repository }: InvoicesDrawerPr
             </div>
           </div>
         )}
+
+        <ImportExport repository={repository} />
       </div>
     </Drawer>
   );

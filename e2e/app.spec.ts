@@ -1,109 +1,101 @@
 /**
  * e2e tests — Invoice Generator
  *
+ * Each test gets a fresh browser context, so localStorage starts empty.
+ *
  * Coverage:
- * 1. New user onboarding → fill invoice → YAML matches
- * 2. Edit YAML with an error → fix → form updates
- * 3. Import a file → appears in the list
- * 4. Print view hides app chrome
+ * 1. Onboarding → seller defaults appear in the form
+ * 2. Form edits → YAML and preview update (money math end to end)
+ * 3. YAML edit with an error → fix → form updates
+ * 4. Import a YAML file → appears in the invoice list
  * 5. Data persists on reload
- * 6. Save via keyboard shortcut
- * 7. Add line item via keyboard shortcut
- * 8. Help dialog
- * 9. Error boundary display
+ * 6. Save via Ctrl/Cmd+S
+ * 7. Add line item via Ctrl/Cmd+Enter
+ * 8. Help dialog via ?
+ * 9. Print shows only the invoice
+ * 10. Marking another invoice as paid leaves the open one alone
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-// ── Test 1: Onboarding → fill invoice → YAML matches ───────────────────────
+/** Mark onboarding as done before the app boots. */
+async function skipOnboarding(page: Page) {
+  await page.addInitScript(() => localStorage.setItem('invoicegen:onboarding:done', 'true'));
+}
 
-test('onboarding → fill invoice → YAML updates', async ({ page }) => {
-  // Clear any existing state
-  await page.evaluate(() => window.localStorage.clear());
+async function openApp(page: Page) {
+  await skipOnboarding(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Invoice Generator' })).toBeVisible();
+}
 
+const yamlEditor = (page: Page) => page.getByLabel('Invoice YAML');
+const saveStatus = (page: Page) => page.getByRole('status').filter({ hasText: /saved|unsaved|failed/i });
+
+test('onboarding → seller defaults appear in the form', async ({ page }) => {
   await page.goto('/');
 
-  // Onboarding dialog should appear
-  await expect(page.getByRole('dialog', { name: 'Welcome' })).toBeVisible();
-  await expect(page.getByText('Seller details')).toBeVisible();
+  const welcome = page.getByRole('dialog', { name: 'Welcome to Invoice Generator' });
+  await expect(welcome).toBeVisible();
 
-  // Fill step 1: seller details
-  await page.getByLabel('Name *', { exact: true }).fill('Test Business');
-  await page.getByLabel('Email *', { exact: true }).fill('test@business.com');
-  await page.getByLabel('Name *', { exact: true }).blur();
+  const next = welcome.getByRole('button', { name: 'Next' });
+  await expect(next).toBeDisabled();
+  await welcome.getByLabel('Name *').fill('Test Business');
+  await welcome.getByLabel('Email *').fill('test@business.com');
+  await expect(next).toBeEnabled();
+  await next.click();
+  await next.click();
 
-  // Step 2 button should be enabled
-  const nextBtn = page.getByRole('button', { name: 'Next' });
-  await expect(nextBtn).toBeEnabled();
-  await nextBtn.click();
+  await expect(welcome.getByRole('heading', { name: "You're all set!" })).toBeVisible();
+  await welcome.getByRole('button', { name: 'Done' }).click();
+  await expect(welcome).toBeHidden();
 
-  // Step 2: preferences
-  await expect(page.getByText('Preferences')).toBeVisible();
+  await expect(page.locator('#seller-name')).toHaveValue('Test Business');
 
-  // Step 3: done
-  await nextBtn.click();
-
-  // Should show done state
-  await expect(page.getByRole('heading', { name: "You're all set!" })).toBeVisible();
-
-  // Click done
-  const doneBtn = page.getByRole('button', { name: 'Done' });
-  await expect(doneBtn).toBeVisible();
-  await doneBtn.click();
-
-  // Dialog should close
-  await expect(page.getByRole('dialog', { name: 'Welcome' })).not.toBeVisible();
-
-  // Invoice form should be visible
-  await expect(page.getByRole('heading', { name: 'Invoice' })).toBeVisible();
-
-  // Fill invoice fields
-  await page.getByLabel('Client name').fill('Acme Corp');
-  await page.getByLabel('Client email').fill('billing@acme.com');
-
-  // Fill first line item
-  await page.getByRole('gridcell').first().fill('Web Design');
-  await page.getByPlaceholder('Qty').fill('1');
-  await page.getByPlaceholder('Unit Price').fill('5000');
-
-  // YAML panel should show updated values
-  // Wait for the yaml textarea to update
-  await page.waitForTimeout(500);
-
-  // Check that client name appears somewhere in the form
-  await expect(page.getByLabel('Client name')).toHaveValue('Acme Corp');
+  // Onboarding does not come back after a reload.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Invoice Generator' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Welcome to Invoice Generator' })).toHaveCount(0);
 });
 
-// ── Test 2: YAML edit → error → fix ───────────────────────────────────────
+test('form edits update YAML and preview totals', async ({ page }) => {
+  await openApp(page);
+
+  await page.locator('#client-name').fill('Acme Corp');
+  await page.getByLabel('Item 1 description').fill('Web Design');
+  await page.getByLabel('Item 1 quantity').fill('2');
+  await page.getByLabel('Item 1 unit price').fill('1500');
+  await page.getByLabel('Item 1 tax rate').fill('8');
+
+  // Preview: 2 × 1500 = 3000.00 net, 8% tax = 240.00, total 3240.00
+  const paper = page.getByRole('article');
+  await expect(paper.getByText('Acme Corp')).toBeVisible();
+  await expect(paper.locator('.inv-totals__grand')).toContainText('3,240.00');
+  await expect(paper.getByText('Tax 8%')).toBeVisible();
+
+  await page.getByRole('tab', { name: 'YAML' }).click();
+  await expect(yamlEditor(page)).toHaveValue(/name: Acme Corp/);
+  await expect(yamlEditor(page)).toHaveValue(/description: Web Design/);
+  await expect(yamlEditor(page)).toHaveValue(/unitPrice: 1500/);
+});
 
 test('YAML edit error → fix updates form', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  await openApp(page);
+  await page.getByRole('tab', { name: 'YAML' }).click();
 
-  // Skip onboarding (if it appears)
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
+  const original = await yamlEditor(page).inputValue();
 
-  // Focus on YAML textarea (should be in YAML panel or sidebar)
-  // For now, skip this test since the YAML panel isn't in the main form yet
-  // The InvoiceForm itself is the main content area
-  await expect(page.getByRole('heading', { name: 'Invoice' })).toBeVisible();
+  await yamlEditor(page).fill(original.replace(/^currency: .*$/m, 'currency: [broken'));
+  await expect(page.getByText(/YAML is invalid/)).toBeVisible();
+  await expect(yamlEditor(page)).toHaveAttribute('aria-invalid', 'true');
+
+  await yamlEditor(page).fill(original.replace(/^notes: .*$/m, 'notes: Fixed via YAML'));
+  await expect(page.getByText(/YAML is invalid/)).toBeHidden();
+  await expect(page.locator('#notes')).toHaveValue('Fixed via YAML');
 });
 
-// ── Test 3: Import a file → appears in list ────────────────────────────────
+test('import YAML file appears in the invoice list', async ({ page }) => {
+  await openApp(page);
 
-test('import YAML file appears in list', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
-
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
-
-  // Create a test YAML file
   const yamlContent = `schemaVersion: 1
 id: inv_e2e_test_001
 number: INV-E2E-0001
@@ -112,8 +104,8 @@ currency: MYR
 issueDate: 2026-10-01
 dueDate: 2026-10-15
 seller:
-  name: "Test Seller"
-  email: "seller@test.com"
+  name: Test Seller
+  email: seller@test.com
   phone: ""
   address: ""
   taxId: ""
@@ -122,13 +114,13 @@ seller:
     accountName: ""
     accountNumber: ""
 client:
-  name: "Imported Client"
-  email: "client@test.com"
+  name: Imported Client
+  email: client@test.com
   address: ""
   taxId: ""
 items:
   - id: item_1
-    description: "Imported item"
+    description: Imported item
     quantity: 1
     unitPrice: 100
     taxRate: 0
@@ -136,205 +128,111 @@ discount:
   type: none
   value: 0
 notes: ""
-terms: ""`;
+terms: ""
+`;
 
-  // Write the YAML content to a temporary file for drag-and-drop testing
-  void yamlContent;
+  await page.getByRole('button', { name: 'Toggle invoice list' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Invoices' });
+  await expect(drawer).toBeVisible();
 
-  // Open invoice list
-  const invoiceBtn = page.getByRole('button', { name: /invoices/i });
-  await invoiceBtn.click();
+  await drawer.locator('input[type="file"]').setInputFiles({
+    name: 'imported.yaml',
+    mimeType: 'text/yaml',
+    buffer: Buffer.from(yamlContent),
+  });
 
-  // Wait for drawer to appear
-  await expect(page.getByRole('dialog', { name: /invoices/i })).toBeVisible({ timeout: 5000 });
-
-  // The import zone should be visible
-  await expect(page.getByText(/Drop/i)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Import results' })).toContainText('Imported');
+  await expect(drawer.getByRole('table', { name: 'Invoice list' })).toContainText('INV-E2E-0001');
+  await expect(drawer.getByRole('table', { name: 'Invoice list' })).toContainText('Imported Client');
 });
-
-// ── Test 4: Print view hides app chrome ───────────────────────────────────
-
-test('print view hides chrome', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
-
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
-
-  // Print should hide header
-  await page.evaluate(() => window.print());
-
-  // Verify print media query is active
-  await expect(page.locator('body')).toHaveCSS('background', 'rgb(255, 255, 255)');
-});
-
-// ── Test 5: Data persists on reload ───────────────────────────────────────
 
 test('data persists on reload', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  await openApp(page);
 
-  // Complete onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
+  await page.locator('#client-name').fill('Persistent Client');
+  await expect(saveStatus(page)).toHaveText('All changes saved');
 
-  // Fill invoice
-  await page.getByLabel('Client name').fill('Persistent Client');
-
-  // Wait for autosave
-  await page.waitForTimeout(1000);
-
-  // Reload
   await page.reload();
-
-  // Skip onboarding (flag should persist)
-  const skipBtn2 = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn2.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn2.click();
-  }
-
-  // Data should persist
-  await expect(page.getByLabel('Client name')).toHaveValue('Persistent Client');
+  await expect(page.locator('#client-name')).toHaveValue('Persistent Client');
+  await expect(page.getByRole('button', { name: 'Toggle invoice list' })).toContainText('(1)');
 });
 
-// ── Test 6: Save via keyboard shortcut ────────────────────────────────────
+test('save via Ctrl/Cmd+S', async ({ page }) => {
+  await openApp(page);
 
-test('save via Ctrl+S', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  await page.locator('#client-name').fill('Shortcut Client');
+  await expect(saveStatus(page)).toHaveText('Unsaved changes');
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(saveStatus(page)).toHaveText('All changes saved');
 
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
-
-  // Fill invoice
-  await page.getByLabel('Client name').fill('Shortcut Client');
-
-  // Press Ctrl+S
-  await page.keyboard.press('Control+s');
-
-  // Wait a bit for the save to complete
-  await page.waitForTimeout(500);
-
-  // Save status should show "saved" — verified by absence of error state
+  const stored = await page.evaluate(() => localStorage.getItem('invoicegen:v1:index'));
+  expect(stored).toContain('Shortcut Client');
 });
 
-// ── Test 7: Add line item via keyboard shortcut ──────────────────────────
+test('add line item via Ctrl/Cmd+Enter', async ({ page }) => {
+  await openApp(page);
 
-test('add line item via Ctrl+Enter', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  const rows = page.getByRole('table', { name: 'Line items' }).locator('tbody tr');
+  const before = await rows.count();
 
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
-
-  // Count initial rows
-  const initialRows = page.locator('table[aria-label="Line items"] tbody tr').count();
-
-  // Focus somewhere in the form first
-  await page.click('body');
-
-  // Press Ctrl+Enter to add item
-  await page.keyboard.press('Control+Enter');
-
-  // Count rows after
-  const afterRows = page.locator('table[aria-label="Line items"] tbody tr').count();
-
-  // Should have one more row
-  await expect(afterRows).toBeGreaterThan(initialRows);
+  await page.keyboard.press('ControlOrMeta+Enter');
+  await expect(rows).toHaveCount(before + 1);
 });
-
-// ── Test 8: Help dialog via ? ─────────────────────────────────────────────
 
 test('help dialog via ?', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  await openApp(page);
 
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
-
-  // Click somewhere not in an input
-  await page.click('body');
-
-  // Press ? to open help
+  await page.locator('body').click();
   await page.keyboard.press('?');
 
-  // Help dialog should appear
-  await expect(page.getByRole('dialog', { name: 'Keyboard Shortcuts' })).toBeVisible();
-
-  // Should list all shortcuts
-  await expect(page.getByText('Save invoice')).toBeVisible();
-  await expect(page.getByText('Print invoice')).toBeVisible();
-  await expect(page.getByText('Toggle invoice list')).toBeVisible();
-  await expect(page.getByText('Add line item')).toBeVisible();
-
-  // Close
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Keyboard Shortcuts' })).not.toBeVisible();
-});
-
-// ── Test 9: Invoice form renders all sections ─────────────────────────────
-
-test('invoice form renders all sections', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
-
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
+  const help = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+  await expect(help).toBeVisible();
+  for (const label of ['Save invoice', 'Print invoice', 'Toggle invoice list', 'Add line item', 'Show this help']) {
+    await expect(help.getByText(label)).toBeVisible();
   }
 
-  // Check all sections exist
-  await expect(page.getByRole('heading', { name: 'Invoice' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Seller' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Client' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Discount' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible();
-
-  // Check totals section
-  await expect(page.getByLabel('Invoice totals')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
 });
 
-// ── Test 10: Keyboard shortcuts panel ────────────────────────────────────
+test('print shows only the invoice', async ({ page }) => {
+  await openApp(page);
+  await page.locator('#client-name').fill('Print Client');
 
-test('all keyboard shortcuts are accessible', async ({ page }) => {
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/');
+  // Even with the YAML tab active, print output is the invoice paper.
+  await page.getByRole('tab', { name: 'YAML' }).click();
+  await page.emulateMedia({ media: 'print' });
 
-  // Skip onboarding
-  const skipBtn = page.getByRole('button', { name: 'Skip' });
-  if (await skipBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await skipBtn.click();
-  }
+  await expect(page.locator('.app-header')).toBeHidden();
+  await expect(page.locator('#client-name')).toBeHidden();
+  await expect(page.getByRole('tablist')).toBeHidden();
+  await expect(yamlEditor(page)).toBeHidden();
+  await expect(page.locator('#invoice-print-area')).toBeVisible();
+  await expect(page.locator('#invoice-print-area')).toContainText('Print Client');
+  await expect(page.getByRole('button', { name: /print/i })).toBeHidden();
+});
 
-  // Open help
-  await page.click('body');
-  await page.keyboard.press('?');
+test('marking another invoice as paid leaves the open invoice alone', async ({ page }) => {
+  await openApp(page);
 
-  // Verify all shortcuts listed
-  const dialog = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
-  await expect(dialog).toBeVisible();
+  // Invoice A
+  await page.locator('#client-name').fill('Client A');
+  await expect(saveStatus(page)).toHaveText('All changes saved');
+  const numberA = await page.locator('#inv-number').inputValue();
 
-  // Count shortcut rows
-  const rows = dialog.locator('.help-dialog__row').count();
-  await expect(rows).toBe(5);
+  // Invoice B
+  await page.getByRole('button', { name: 'Toggle invoice list' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Invoices' });
+  await drawer.getByRole('button', { name: '+ New invoice' }).click();
+  await page.locator('#client-name').fill('Client B');
+  await expect(saveStatus(page)).toHaveText('All changes saved');
 
-  // Close
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Toggle invoice list' }).click();
+  await drawer.getByRole('button', { name: `Mark ${numberA} as paid` }).click();
+
+  const rowA = drawer.getByRole('row').filter({ hasText: 'Client A' });
+  const rowB = drawer.getByRole('row').filter({ hasText: 'Client B' });
+  await expect(rowA).toContainText(/paid/i);
+  await expect(rowB).toContainText(/draft/i);
+  await expect(page.locator('#inv-status')).toHaveValue('draft');
 });

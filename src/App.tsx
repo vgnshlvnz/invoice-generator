@@ -5,7 +5,7 @@
  * help dialog, and lazy-loaded feature components.
  */
 import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
-import { useAppState } from './state/store';
+import { useAppState, type SaveStatus } from './state/store';
 import { InvoiceForm } from './features/invoice-form';
 import { Preview } from './features/preview';
 import { YamlPanel } from './features/yaml-panel';
@@ -19,6 +19,14 @@ const InvoicesDrawer = lazy(() => import('./features/invoices/InvoicesDrawer').t
 function SuspenseFallback() {
   return <div className="invoice-form__section" aria-live="polite">Loading…</div>;
 }
+
+const SAVE_STATUS_TEXT: Record<SaveStatus | 'unsaved', string> = {
+  idle: '',
+  unsaved: 'Unsaved changes',
+  saving: 'Saving…',
+  saved: 'All changes saved',
+  error: 'Save failed',
+};
 
 type OutputTab = 'preview' | 'yaml';
 
@@ -98,6 +106,7 @@ function App() {
     try {
       repository.saveInvoice(state.invoice.invoice);
       dispatch({ type: 'SAVE_OK' });
+      dispatch({ type: 'SET_INDEX', index: repository.listInvoices() });
     } catch {
       dispatch({ type: 'SAVE_ERR', error: 'Save failed' });
     }
@@ -181,6 +190,9 @@ function App() {
       <header className="app-header">
         <h1>Invoice Generator</h1>
         <div className="app-header-actions">
+          <span className="save-status" role="status" aria-live="polite">
+            {SAVE_STATUS_TEXT[state.invoice.dirty ? 'unsaved' : state.invoice.saveStatus]}
+          </span>
           <Button
             variant="secondary"
             size="sm"

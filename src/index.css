@@ -82,7 +82,13 @@ body {
 
 .app-header-actions {
   display: flex;
+  align-items: center;
   gap: var(--spacing-sm);
+}
+
+.save-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 /* Main content */

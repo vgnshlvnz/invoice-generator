@@ -300,10 +300,18 @@ function buildInitialState(repo: InvoiceRepository): AppState {
   const profile = repo.getProfile();
   const onboardingDone = localStorage.getItem('invoicegen:onboarding:done') === 'true';
   const needsOnboarding = !profile.seller.name || !profile.seller.email;
+  const index = repo.listInvoices();
+
+  // Reopen the most recently edited invoice, if any.
+  const latest = [...index].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const restored = latest ? repo.getInvoice(latest.id) : null;
+  const invoice = restored
+    ? { ...initialInvoiceState(), invoice: restored, yamlText: toYaml(restored) }
+    : initialInvoiceState();
 
   return {
-    invoice: initialInvoiceState(),
-    index: repo.listInvoices(),
+    invoice,
+    index,
     profile,
     clients: repo.getClients(),
     onboarding: {
@@ -314,9 +322,7 @@ function buildInitialState(repo: InvoiceRepository): AppState {
 }
 
 export function AppProvider({ repository, children }: AppProviderProps) {
-  const initialState = buildInitialState(repository);
-
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, repository, buildInitialState);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load on mount ──────────────────────────────────────────────────
@@ -328,17 +334,18 @@ export function AppProvider({ repository, children }: AppProviderProps) {
 
   // ── Autosave ───────────────────────────────────────────────────────
   const save = useCallback(() => {
-    const { invoice } = state.invoice;
-    if (!invoice) return;
+    const { invoice, dirty } = state.invoice;
+    // Never persist untouched invoices (e.g. a blank one on page unload).
+    if (!invoice || !dirty) return;
 
-    dispatch({ type: 'SAVE_OK' }); // optimistic update
     try {
       repository.saveInvoice(invoice);
       dispatch({ type: 'SAVE_OK' });
+      dispatch({ type: 'SET_INDEX', index: repository.listInvoices() });
     } catch (e) {
       dispatch({ type: 'SAVE_ERR', error: String(e) });
     }
-  }, [state.invoice.invoice, repository]);
+  }, [state.invoice.invoice, state.invoice.dirty, repository]);
 
   // Debounced autosave
   useEffect(() => {
