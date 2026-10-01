@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -7,6 +7,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
-    exclude: ['**/e2e/**', '**/*.e2e.spec.ts', ...process.env.CI ? [] : []],
+    exclude: [...configDefaults.exclude, '**/e2e/**', '**/*.e2e.spec.ts', '.claude/**', 'worktree-*/**'],
   },
 });

@@ -1,0 +1,205 @@
+/* === Preview Pane === */
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.preview-pane__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.preview-pane__canvas {
+  overflow: auto;
+  padding: var(--spacing-md);
+  border-radius: var(--radius);
+  background: #525659;
+}
+
+/* The paper is always light, regardless of app theme. */
+.inv-paper {
+  position: relative;
+  max-width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 16mm;
+  overflow: hidden;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 13px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.inv-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: 32px;
+}
+
+.inv-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.inv-seller-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.inv-pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inv-meta {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 16px;
+  margin: 0;
+  align-self: start;
+}
+
+.inv-meta dt,
+.inv-section-title {
+  color: #4b5563;
+}
+
+.inv-meta dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.inv-status {
+  text-transform: capitalize;
+}
+
+.inv-section {
+  margin-bottom: 24px;
+}
+
+.inv-section-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.inv-items {
+  width: 100%;
+  margin-bottom: 24px;
+  border-collapse: collapse;
+}
+
+.inv-items th {
+  padding: 8px 6px;
+  border-bottom: 2px solid #d1d5db;
+  color: #4b5563;
+  font-size: 11px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inv-items td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.inv-items .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.inv-empty {
+  color: #4b5563;
+  text-align: center;
+}
+
+.inv-totals {
+  width: min(100%, 260px);
+  margin: 0 0 32px auto;
+}
+
+.inv-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.inv-totals dd {
+  margin: 0;
+}
+
+.inv-totals__grand {
+  margin-top: 4px;
+  padding-top: 8px !important;
+  border-top: 2px solid #1a1a1a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.inv-watermark {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 110px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #1a1a1a;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .preview-pane__canvas {
+    padding: var(--spacing-sm);
+  }
+
+  .inv-paper {
+    min-height: 0;
+    padding: var(--spacing-md);
+  }
+}
+
+/* Print: only the invoice paper is printed. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .preview-pane__toolbar {
+    display: none !important;
+  }
+
+  .preview-pane__canvas {
+    padding: 0;
+    overflow: visible;
+    background: none;
+  }
+
+  .inv-paper {
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .inv-items tr {
+    break-inside: avoid;
+  }
+
+  .inv-items thead {
+    display: table-header-group;
+  }
+}

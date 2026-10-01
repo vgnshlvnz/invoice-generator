@@ -7,6 +7,8 @@
 import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAppState } from './state/store';
 import { InvoiceForm } from './features/invoice-form';
+import { Preview } from './features/preview';
+import { YamlPanel } from './features/yaml-panel';
 import { Button, OnboardingDialog, HelpDialog, ErrorBoundary } from './ui';
 
 // Lazy-loaded feature components (code-split)
@@ -16,6 +18,62 @@ const InvoicesDrawer = lazy(() => import('./features/invoices/InvoicesDrawer').t
 /** Suspense fallback for lazy-loaded components. */
 function SuspenseFallback() {
   return <div className="invoice-form__section" aria-live="polite">Loading…</div>;
+}
+
+type OutputTab = 'preview' | 'yaml';
+
+const OUTPUT_TABS: { id: OutputTab; label: string }[] = [
+  { id: 'preview', label: 'Preview' },
+  { id: 'yaml', label: 'YAML' },
+];
+
+/** Preview / YAML tabs (WAI-ARIA tabs pattern with arrow-key navigation). */
+function OutputPanel() {
+  const [active, setActive] = useState<OutputTab>('preview');
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const i = OUTPUT_TABS.findIndex((t) => t.id === active);
+    const next = OUTPUT_TABS[(i + (e.key === 'ArrowRight' ? 1 : -1) + OUTPUT_TABS.length) % OUTPUT_TABS.length];
+    setActive(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
+  };
+
+  return (
+    <section className="workspace__output" aria-label="Invoice output">
+      <div className="workspace__tabs" role="tablist" aria-label="Output view" onKeyDown={handleKeyDown}>
+        {OUTPUT_TABS.map((t) => (
+          <button
+            key={t.id}
+            id={`tab-${t.id}`}
+            type="button"
+            role="tab"
+            className="workspace__tab"
+            aria-selected={active === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={active === t.id ? 0 : -1}
+            onClick={() => setActive(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {/* Both panels stay mounted so the preview is always printable. */}
+      <div
+        id="panel-preview"
+        role="tabpanel"
+        aria-labelledby="tab-preview"
+        className="workspace__panel--preview"
+        hidden={active !== 'preview'}
+      >
+        <Preview />
+      </div>
+      <div id="panel-yaml" role="tabpanel" aria-labelledby="tab-yaml" className="workspace__panel--yaml" hidden={active !== 'yaml'}>
+        <YamlPanel />
+      </div>
+    </section>
+  );
 }
 
 function App() {
@@ -66,7 +124,7 @@ function App() {
       const inInput = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
 
       // Ctrl/Cmd+S — save
-      if (isModifier && e.shiftKey && e.key === 'S') {
+      if (isModifier && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveRef.current?.();
         return;
@@ -143,8 +201,11 @@ function App() {
       </header>
 
       {/* Main content */}
-      <main>
-        <InvoiceForm />
+      <main className="workspace">
+        <div className="workspace__editor">
+          <InvoiceForm />
+        </div>
+        <OutputPanel />
       </main>
 
       {/* Onboarding dialog */}

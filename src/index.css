@@ -93,6 +93,55 @@ main {
   flex: 1;
 }
 
+/* Workspace: form on the left, preview / YAML tabs on the right */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-xl);
+}
+
+.workspace__tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.workspace__tab {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.workspace__tab[aria-selected='true'] {
+  border-bottom-color: var(--color-primary);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.workspace__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1280px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .workspace__output {
+    position: sticky;
+    top: var(--spacing-md);
+  }
+}
+
 /* Invoice list table */
 .invoice-table {
   width: 100%;
@@ -281,26 +330,17 @@ main {
     margin: 0;
   }
 
-  /* Invoice form content visible in print */
-  .invoice-form {
-    display: block;
+  /* Only the invoice preview is printed — never the editing UI. */
+  .workspace__editor,
+  .workspace__tabs,
+  .workspace__panel--yaml {
+    display: none !important;
   }
 
-  .invoice-form__section {
-    background: none;
-    border: 1px solid #ccc;
-    break-inside: avoid;
-    margin-bottom: var(--spacing-lg);
-  }
-
-  .invoice-form__totals {
-    background: none;
-    border: 1px solid #ccc;
-  }
-
-  .invoice-form__items-table input {
-    border: none;
-    background: transparent;
+  .workspace,
+  .workspace__panel--preview,
+  .workspace__panel--preview[hidden] {
+    display: block !important;
   }
 }
 
@@ -434,7 +474,7 @@ main {
 /* Large desktop */
 @media (min-width: 1280px) {
   main {
-    max-width: 1100px;
+    max-width: 1600px;
   }
 }
 
