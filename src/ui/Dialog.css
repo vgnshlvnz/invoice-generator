@@ -11,6 +11,11 @@
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
+  outline: none; /* removed */
+}
+
+.dialog__overlay:focus-visible {
+  outline: none;
 }
 
 .dialog__content {

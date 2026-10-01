@@ -1,0 +1,38 @@
+/* HelpDialog styles */
+
+.help-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.help-dialog__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.help-dialog__row dt {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.help-dialog__row dd {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.help-dialog__row kbd {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  font-family: var(--font-family);
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1;
+}

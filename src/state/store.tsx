@@ -29,6 +29,7 @@ export interface AppState {
   index: InvoiceIndexEntry[];
   profile: Profile;
   clients: SavedClient[];
+  onboarding: { show: boolean; done: boolean };
 }
 
 /** Actions dispatched by the reducer. */
@@ -46,7 +47,9 @@ export type Action =
   | { type: 'SET_PROFILE'; profile: Profile }
   | { type: 'SET_CLIENTS'; clients: SavedClient[] }
   | { type: 'DELETE' }
-  | { type: 'DUPLICATE'; invoice: Invoice };
+  | { type: 'DUPLICATE'; invoice: Invoice }
+  | { type: 'SET_ONBOARDING_DONE' }
+  | { type: 'TRIGGER_ONBOARDING' };
 
 /** Initial invoice state. */
 function initialInvoiceState(): InvoiceState {
@@ -242,6 +245,17 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case 'SET_ONBOARDING_DONE': {
+      localStorage.setItem('invoicegen:onboarding:done', 'true');
+      return { ...state, onboarding: { ...state.onboarding, show: false, done: true } };
+    }
+
+    case 'TRIGGER_ONBOARDING': {
+      const profile = state.profile;
+      const needsOnboarding = !profile.seller.name || !profile.seller.email;
+      return { ...state, onboarding: { ...state.onboarding, show: needsOnboarding } };
+    }
+
     case 'DUPLICATE': {
       return {
         ...state,
@@ -279,11 +293,19 @@ interface AppProviderProps {
 
 /** Full initial state (merged with repository data). */
 function buildInitialState(repo: InvoiceRepository): AppState {
+  const profile = repo.getProfile();
+  const onboardingDone = localStorage.getItem('invoicegen:onboarding:done') === 'true';
+  const needsOnboarding = !profile.seller.name || !profile.seller.email;
+
   return {
     invoice: initialInvoiceState(),
     index: repo.listInvoices(),
-    profile: repo.getProfile(),
+    profile,
     clients: repo.getClients(),
+    onboarding: {
+      show: !onboardingDone && needsOnboarding,
+      done: onboardingDone,
+    },
   };
 }
 

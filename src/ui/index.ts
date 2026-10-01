@@ -6,3 +6,6 @@ export { Dialog } from './Dialog';
 export { Drawer } from './Drawer';
 export { DropZone } from './DropZone';
 export { StorageMeter } from './StorageMeter';
+export { OnboardingDialog } from './OnboardingDialog';
+export { ErrorBoundary } from './ErrorBoundary';
+export { HelpDialog } from './HelpDialog';

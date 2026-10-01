@@ -4,6 +4,7 @@
 import { useEffect, useRef } from 'react';
 import './Drawer.css';
 import type { ReactNode } from 'react';
+import { useFocusTrap } from './useFocusTrap';
 
 interface DrawerProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface DrawerProps {
 /**
  * A right-side drawer panel that slides in when open.
  * Closes on Escape key and overlay click.
+ * Traps focus within the drawer when open.
  */
 export function Drawer({
   isOpen,
@@ -24,24 +26,16 @@ export function Drawer({
   children,
   width = '480px',
 }: DrawerProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
+  // Focus trap via custom hook
+  useFocusTrap(overlayRef as React.RefObject<HTMLElement | null>, isOpen, onClose);
+
+  // Initial focus on overlay when opened
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeydown);
-    closeRef.current?.focus();
-
-    return () => {
-      document.removeEventListener('keydown', handleKeydown);
-    };
-  }, [isOpen, onClose]);
+    overlayRef.current?.focus();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -53,12 +47,16 @@ export function Drawer({
       aria-modal="true"
       aria-labelledby="drawer-title"
     >
-      <div className="drawer__overlay" onClick={onClose} />
+      <div
+        className="drawer__overlay"
+        onClick={onClose}
+        ref={overlayRef}
+        tabIndex={-1}
+      />
       <aside className="drawer__panel">
         <div className="drawer__header">
           <h2 id="drawer-title" className="drawer__title">{title}</h2>
           <button
-            ref={closeRef}
             className="drawer__close"
             onClick={onClose}
             aria-label="Close drawer"

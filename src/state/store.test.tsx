@@ -20,6 +20,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
       numbering: { prefix: 'INV', yearStart: 2026, sequenceStart: 1 },
     },
     clients: [],
+    onboarding: { show: false, done: true },
     ...overrides,
   };
 }
